@@ -54,7 +54,7 @@ export function Chatbot() {
             body: JSON.stringify(requestBody),
         };
 
-        const response = await fetch("http://172.105.21.209:80/message", request);
+        const response = await fetch("/api/message", request);
         return response;
     }
 
