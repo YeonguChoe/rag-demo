@@ -33,21 +33,78 @@ export function Chatbot() {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
 
-    const handleSend = () => {
+    async function sendRequest(
+        query: string,
+        location: { latitude: number; longitude: number }
+    ): Promise<Response> {
+        // Extract the request body into a variable
+        const requestBody = {
+            query: query,
+            location: {
+                latitude: location.latitude,
+                longitude: location.longitude
+            }
+        };
+
+        const request: RequestInit = {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(requestBody),
+        };
+
+        const response = await fetch("http://127.0.0.1:8000/message", request);
+        return response;
+    }
+
+    const handleSend = async () => {
         if (!input.trim()) return;
         if (input.length > 5000) {
             setInputError("Maximum input length is 5000 characters.");
             return;
         }
+
+        // Check if location is available
+        if (!location.latitude || !location.longitude) {
+            setInputError("Location not available. Please enable location services.");
+            return;
+        }
+
+        // Add user message
         setMessages((prev) => [...prev, { role: "user", content: input }]);
+        const currentInput = input;
         setInput("");
         setInputError("");
-        setTimeout(() => {
+
+        // Add loading message
+        setMessages((prev) => [...prev, { role: "bot", content: "Thinking..." }]);
+
+        try {
+            const response = await sendRequest(currentInput, {
+                latitude: location.latitude,
+                longitude: location.longitude
+            });
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // Remove loading message and add actual response
             setMessages((prev) => [
-                ...prev,
-                { role: "bot", content: `This is answer to "${input}"` },
+                ...prev.slice(0, -1), // Remove "Thinking..." message
+                { role: "bot", content: data.answer || "No response from server" } // <-- THIS IS THE CHANGE
             ]);
-        }, 200);
+        } catch (error) {
+            console.error("Error:", error);
+            // Remove loading message and add error message
+            setMessages((prev) => [
+                ...prev.slice(0, -1),
+                { role: "bot", content: "Couldn't reach server" }
+            ]);
+        }
     };
 
     const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
